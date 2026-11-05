@@ -39,9 +39,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -74,11 +77,14 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-private enum class ShortcutTarget {
-    RETROARCH,
-    DOLPHIN,
-    MELONDS,
-    PPSSPP_GOLD
+private enum class ShortcutTarget(val displayName: String) {
+    RETROARCH("RetroArch"),
+    DOLPHIN("Dolphin"),
+    MELONDS("melonDS"),
+    PPSSPP_GOLD("PPSSPP Gold"),
+    EDEN("Eden (Switch)"),
+    NETHERSX2("NetherSX2 (PS2)"),
+    HAKUX("hakuX (Xbox)")
 }
 
 private enum class ShortcutIconMode {
@@ -88,8 +94,14 @@ private enum class ShortcutIconMode {
 
 private const val THUMBNAIL_CACHE_DIR = "thumbnail_cache"
 private const val THUMBNAIL_BASE_URL = "https://thumbnails.libretro.com/"
-private const val THUMBNAIL_CACHE_VERSION = "v3"
+private const val THUMBNAIL_CACHE_VERSION = "v4"
 private const val ACTION_BULK_PIN_CONFIRMED = "com.romshortcutmaker.action.BULK_PIN_CONFIRMED"
+private const val EDEN_PACKAGE_NAME = "dev.eden.eden_emulator"
+private const val EDEN_ACTIVITY_NAME = "org.yuzu.yuzu_emu.activities.EmulationActivity"
+private const val NETHERSX2_PACKAGE_NAME = "xyz.aethersx2.android"
+private const val NETHERSX2_ACTIVITY_NAME = "xyz.aethersx2.android.EmulationActivity"
+private const val HAKUX_PACKAGE_NAME = "com.rfandango.haku_x"
+private const val HAKUX_ACTIVITY_NAME = "com.rfandango.haku_x.LauncherActivity"
 internal const val MAIN_ACTIVITY_FACADE_ANCHOR = "MainActivityKt"
 private val MANUAL_THUMBNAIL_DATABASE_OPTIONS = listOf(
     "Nintendo - Game Boy",
@@ -130,6 +142,10 @@ private object BulkShortcutQueue {
     private var selectedCorePreset: CorePreset? = null
     private var selectedThumbnailDatabaseOverride: String? = null
     private var shortcutIconMode = ShortcutIconMode.STRETCH
+    private var edenPackageName = EDEN_PACKAGE_NAME
+    private var edenActivityName = EDEN_ACTIVITY_NAME
+    private var netherSx2PackageName = NETHERSX2_PACKAGE_NAME
+    private var netherSx2ActivityName = NETHERSX2_ACTIVITY_NAME
 
     @Synchronized
     fun start(
@@ -137,6 +153,10 @@ private object BulkShortcutQueue {
         shortcutTarget: ShortcutTarget,
         corePath: String,
         retroArchPackage: String,
+        edenPackageName: String,
+        edenActivityName: String,
+        netherSx2PackageName: String,
+        netherSx2ActivityName: String,
         selectedCorePreset: CorePreset?,
         selectedThumbnailDatabaseOverride: String?,
         shortcutIconMode: ShortcutIconMode
@@ -146,6 +166,10 @@ private object BulkShortcutQueue {
         this.shortcutTarget = shortcutTarget
         this.corePath = corePath
         this.retroArchPackage = retroArchPackage
+        this.edenPackageName = edenPackageName
+        this.edenActivityName = edenActivityName
+        this.netherSx2PackageName = netherSx2PackageName
+        this.netherSx2ActivityName = netherSx2ActivityName
         this.selectedCorePreset = selectedCorePreset
         this.selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride
         this.shortcutIconMode = shortcutIconMode
@@ -184,6 +208,10 @@ private object BulkShortcutQueue {
                 shortcutTarget = shortcutTarget,
                 corePath = corePath,
                 retroArchPackage = retroArchPackage,
+                edenPackageName = edenPackageName,
+                edenActivityName = edenActivityName,
+                netherSx2PackageName = netherSx2PackageName,
+                netherSx2ActivityName = netherSx2ActivityName,
                 selectedCorePreset = selectedCorePreset,
                 selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride,
                 shortcutIconMode = shortcutIconMode
@@ -202,6 +230,10 @@ private object BulkShortcutQueue {
             shortcutTarget = snapshot.shortcutTarget,
             corePath = snapshot.corePath,
             retroArchPackage = snapshot.retroArchPackage,
+            edenPackageName = snapshot.edenPackageName,
+            edenActivityName = snapshot.edenActivityName,
+            netherSx2PackageName = snapshot.netherSx2PackageName,
+            netherSx2ActivityName = snapshot.netherSx2ActivityName,
             selectedCorePreset = snapshot.selectedCorePreset,
             selectedThumbnailDatabaseOverride = snapshot.selectedThumbnailDatabaseOverride,
             shortcutIconMode = snapshot.shortcutIconMode,
@@ -223,6 +255,10 @@ private object BulkShortcutQueue {
         val shortcutTarget: ShortcutTarget,
         val corePath: String,
         val retroArchPackage: String,
+        val edenPackageName: String,
+        val edenActivityName: String,
+        val netherSx2PackageName: String,
+        val netherSx2ActivityName: String,
         val selectedCorePreset: CorePreset?,
         val selectedThumbnailDatabaseOverride: String?,
         val shortcutIconMode: ShortcutIconMode
@@ -282,6 +318,11 @@ private fun ShortcutBuilderScreen() {
     var romUri by remember { mutableStateOf<Uri?>(null) }
     var shortcutTarget by remember { mutableStateOf(ShortcutTarget.RETROARCH) }
     var retroArchPackage by remember { mutableStateOf("com.retroarch.aarch64") }
+    var edenPackageName by remember { mutableStateOf(EDEN_PACKAGE_NAME) }
+    var edenActivityName by remember { mutableStateOf(EDEN_ACTIVITY_NAME) }
+    var netherSx2PackageName by remember { mutableStateOf(NETHERSX2_PACKAGE_NAME) }
+    var netherSx2ActivityName by remember { mutableStateOf(NETHERSX2_ACTIVITY_NAME) }
+    var netherSx2BootExtraKey by remember { mutableStateOf("bootPath") }
     var corePath by remember { mutableStateOf(defaultCorePreset.resolveCorePath(retroArchPackage)) }
     var selectedCorePreset by remember { mutableStateOf<CorePreset?>(defaultCorePreset) }
     var selectedThumbnailDatabaseOverride by remember { mutableStateOf<String?>(null) }
@@ -301,6 +342,14 @@ private fun ShortcutBuilderScreen() {
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+            }
             val romSelections = uris.map { uri ->
                 val path = FilePickerHelper.uriToPath(context, uri) ?: uri.toString()
                 RomSelection(
@@ -361,7 +410,7 @@ private fun ShortcutBuilderScreen() {
             )
 
             Text(
-                text = "Create Android home-screen shortcuts that launch games in RetroArch, Dolphin, melonDS, or PPSSPP Gold.",
+                text = "Create Android home-screen shortcuts that launch games in RetroArch, Dolphin, melonDS, PPSSPP Gold, Eden, or NetherSX2.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFFE5E7EB)
             )
@@ -374,90 +423,32 @@ private fun ShortcutBuilderScreen() {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(text = "Shortcut target", color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    shortcutTarget = ShortcutTarget.RETROARCH
-                                    message = "RetroArch shortcut mode selected."
-                                }
-                                .padding(end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    var targetMenuExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        OutlinedButton(
+                            onClick = { targetMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            RadioButton(
-                                selected = shortcutTarget == ShortcutTarget.RETROARCH,
-                                onClick = {
-                                    shortcutTarget = ShortcutTarget.RETROARCH
-                                    message = "RetroArch shortcut mode selected."
-                                }
-                            )
-                            Text(text = "RetroArch", color = Color(0xFFF9FAFB))
+                            Text(shortcutTarget.displayName)
                         }
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    shortcutTarget = ShortcutTarget.DOLPHIN
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "Dolphin shortcut mode selected."
-                                }
-                                .padding(end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        DropdownMenu(
+                            expanded = targetMenuExpanded,
+                            onDismissRequest = { targetMenuExpanded = false }
                         ) {
-                            RadioButton(
-                                selected = shortcutTarget == ShortcutTarget.DOLPHIN,
-                                onClick = {
-                                    shortcutTarget = ShortcutTarget.DOLPHIN
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "Dolphin shortcut mode selected."
-                                }
-                            )
-                            Text(text = "Dolphin", color = Color(0xFFF9FAFB))
-                        }
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    shortcutTarget = ShortcutTarget.MELONDS
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "melonDS shortcut mode selected."
-                                }
-                                .padding(end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = shortcutTarget == ShortcutTarget.MELONDS,
-                                onClick = {
-                                    shortcutTarget = ShortcutTarget.MELONDS
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "melonDS shortcut mode selected."
-                                }
-                            )
-                            Text(text = "melonDS", color = Color(0xFFF9FAFB))
-                        }
-                        Row(
-                            modifier = Modifier
-                                .clickable {
-                                    shortcutTarget = ShortcutTarget.PPSSPP_GOLD
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "PPSSPP Gold shortcut mode selected."
-                                }
-                                .padding(end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = shortcutTarget == ShortcutTarget.PPSSPP_GOLD,
-                                onClick = {
-                                    shortcutTarget = ShortcutTarget.PPSSPP_GOLD
-                                    selectedCorePreset = null
-                                    showCoreSelector = false
-                                    message = "PPSSPP Gold shortcut mode selected."
-                                }
-                            )
-                            Text(text = "PPSSPP Gold", color = Color(0xFFF9FAFB))
+                            ShortcutTarget.entries.forEach { target ->
+                                DropdownMenuItem(
+                                    text = { Text(target.displayName) },
+                                    onClick = {
+                                        shortcutTarget = target
+                                        if (target != ShortcutTarget.RETROARCH) {
+                                            selectedCorePreset = null
+                                            showCoreSelector = false
+                                        }
+                                        message = "${target.displayName} shortcut mode selected."
+                                        targetMenuExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -613,6 +604,59 @@ private fun ShortcutBuilderScreen() {
                             color = Color(0xFFCBD5E1),
                             style = MaterialTheme.typography.bodySmall
                         )
+                    } else if (shortcutTarget == ShortcutTarget.EDEN) {
+                        OutlinedTextField(
+                            value = edenPackageName,
+                            onValueChange = { edenPackageName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Eden package name") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = edenActivityName,
+                            onValueChange = { edenActivityName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Eden activity class") },
+                            singleLine = true
+                        )
+                        Text(
+                            text = "Eden uses ACTION_VIEW with the ROM content URI (application/octet-stream) targeting EmulationActivity. Nightly builds use package dev.eden.eden_nightly.",
+                            color = Color(0xFFCBD5E1),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else if (shortcutTarget == ShortcutTarget.NETHERSX2) {
+                        OutlinedTextField(
+                            value = netherSx2PackageName,
+                            onValueChange = { netherSx2PackageName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("NetherSX2 package name") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = netherSx2ActivityName,
+                            onValueChange = { netherSx2ActivityName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("NetherSX2 activity class") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = netherSx2BootExtraKey,
+                            onValueChange = { netherSx2BootExtraKey = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("NetherSX2 boot extra key (try: bootPath, gamePath, filePath, romPath, path)") },
+                            singleLine = true
+                        )
+                        Text(
+                            text = "NetherSX2 uses ACTION_VIEW with a '$netherSx2BootExtraKey' extra containing the ROM file path. Patched builds target EmulationActivity; older builds may need MainActivity. Use Test Launch to find the right combination.",
+                            color = Color(0xFFCBD5E1),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else if (shortcutTarget == ShortcutTarget.HAKUX) {
+                        Text(
+                            text = "hakuX uses package com.rfandango.haku_x and activity com.rfandango.haku_x.LauncherActivity. Launches with ACTION_VIEW and the selected ROM as data URI. hakuX setup must be completed (a games folder added) for direct game launches.",
+                            color = Color(0xFFCBD5E1),
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
 
                     Text(text = "Icon image mode", color = Color.White, fontWeight = FontWeight.SemiBold)
@@ -731,6 +775,10 @@ private fun ShortcutBuilderScreen() {
                                 romUri = null
                                 shortcutTarget = ShortcutTarget.RETROARCH
                                 retroArchPackage = "com.retroarch.aarch64"
+                                edenPackageName = EDEN_PACKAGE_NAME
+                                edenActivityName = EDEN_ACTIVITY_NAME
+                                netherSx2PackageName = NETHERSX2_PACKAGE_NAME
+                                netherSx2ActivityName = NETHERSX2_ACTIVITY_NAME
                                 selectedCorePreset = defaultCorePreset
                                 corePath = defaultCorePreset.resolveCorePath("com.retroarch.aarch64")
                                 selectedThumbnailDatabaseOverride = null
@@ -758,6 +806,29 @@ private fun ShortcutBuilderScreen() {
                         color = Color(0xFFCBD5E1),
                         style = MaterialTheme.typography.bodySmall
                     )
+
+                    Button(
+                        onClick = {
+                            val intent = buildLaunchIntent(
+                                context, shortcutTarget, romPath.trim(), romUri, corePath.trim(),
+                                retroArchPackage.trim(), edenPackageName.trim(), edenActivityName.trim(),
+                                netherSx2PackageName.trim(), netherSx2ActivityName.trim(), netherSx2BootExtraKey.trim()
+                            )
+                            if (intent == null) {
+                                message = "Cannot build launch intent (emulator not installed?)"
+                            } else {
+                                try {
+                                    context.startActivity(intent)
+                                    message = "Test launch sent to ${shortcutTarget.displayName}."
+                                } catch (e: Exception) {
+                                    message = "Test launch failed: ${e.message}"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Test Launch")
+                    }
 
                     Button(
                         onClick = {
@@ -784,6 +855,11 @@ private fun ShortcutBuilderScreen() {
                                         shortcutTarget = shortcutTarget,
                                         corePath = corePath.trim(),
                                         retroArchPackage = retroArchPackage.trim(),
+                                        edenPackageName = edenPackageName.trim(),
+                                        edenActivityName = edenActivityName.trim(),
+                                        netherSx2PackageName = netherSx2PackageName.trim(),
+                                        netherSx2ActivityName = netherSx2ActivityName.trim(),
+                                        netherSx2BootExtraKey = netherSx2BootExtraKey.trim(),
                                         selectedCorePreset = selectedCorePreset,
                                         selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride,
                                         shortcutIconMode = shortcutIconMode
@@ -807,6 +883,10 @@ private fun ShortcutBuilderScreen() {
                                             shortcutTarget = shortcutTarget,
                                             corePath = corePath.trim(),
                                             retroArchPackage = retroArchPackage.trim(),
+                                            edenPackageName = edenPackageName.trim(),
+                                            edenActivityName = edenActivityName.trim(),
+                                            netherSx2PackageName = netherSx2PackageName.trim(),
+                                            netherSx2ActivityName = netherSx2ActivityName.trim(),
                                             selectedCorePreset = selectedCorePreset,
                                             selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride,
                                             shortcutIconMode = shortcutIconMode
@@ -848,6 +928,10 @@ private fun ShortcutBuilderScreen() {
                                         shortcutTarget = shortcutTarget,
                                         corePath = corePath.trim(),
                                         retroArchPackage = retroArchPackage.trim(),
+                                        edenPackageName = edenPackageName.trim(),
+                                        edenActivityName = edenActivityName.trim(),
+                                        netherSx2PackageName = netherSx2PackageName.trim(),
+                                        netherSx2ActivityName = netherSx2ActivityName.trim(),
                                         selectedCorePreset = selectedCorePreset,
                                         selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride,
                                         shortcutIconMode = shortcutIconMode
@@ -899,6 +983,10 @@ private fun ShortcutBuilderScreen() {
                 shortcutTarget = shortcutTarget,
                 corePath = corePath,
                 retroArchPackage = retroArchPackage,
+                edenPackageName = edenPackageName,
+                edenActivityName = edenActivityName,
+                netherSx2PackageName = netherSx2PackageName,
+                netherSx2ActivityName = netherSx2ActivityName,
                 selectedThumbnailDatabaseOverride = selectedThumbnailDatabaseOverride,
                 dolphinAutoStartFile = FilePickerHelper.buildDolphinAutoStartFile(romUri, romPath)
             )
@@ -951,6 +1039,10 @@ private fun ShortcutPreviewCard(
     shortcutTarget: ShortcutTarget,
     corePath: String,
     retroArchPackage: String,
+    edenPackageName: String,
+    edenActivityName: String,
+    netherSx2PackageName: String,
+    netherSx2ActivityName: String,
     selectedThumbnailDatabaseOverride: String?,
     dolphinAutoStartFile: String?
 ) {
@@ -1012,6 +1104,21 @@ private fun ShortcutPreviewCard(
                 Text(text = "Class: org.ppsspp.ppsspp.PpssppActivity", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
                 Text(text = "Data: [external storage content URI]", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
                 Text(text = "Extra: org.ppsspp.ppsspp.Shortcuts = [same URI]", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+            } else if (shortcutTarget == ShortcutTarget.EDEN) {
+                Text(text = "Package: $edenPackageName", color = Color(0xFFCBD5E1))
+                Text(text = "Activity: $edenActivityName", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+                Text(text = "Action: android.intent.action.VIEW", color = Color(0xFFCBD5E1))
+                Text(text = "Data: [ROM uri]", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+            } else if (shortcutTarget == ShortcutTarget.NETHERSX2) {
+                Text(text = "Package: $netherSx2PackageName", color = Color(0xFFCBD5E1))
+                Text(text = "Activity: $netherSx2ActivityName", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+                Text(text = "Action: android.intent.action.VIEW", color = Color(0xFFCBD5E1))
+                Text(text = "Extra: bootPath = ${buildNetherSx2BootUri(null, romPath).takeLast(60)}", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+            } else if (shortcutTarget == ShortcutTarget.HAKUX) {
+                Text(text = "Package: $HAKUX_PACKAGE_NAME", color = Color(0xFFCBD5E1))
+                Text(text = "Activity: $HAKUX_ACTIVITY_NAME", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
+                Text(text = "Action: android.intent.action.VIEW", color = Color(0xFFCBD5E1))
+                Text(text = "Data: [ROM uri]", color = Color(0xFFCBD5E1), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -1147,6 +1254,164 @@ private fun CorePresetsDialog(
     )
 }
 
+private fun buildLaunchIntent(
+    context: Context,
+    shortcutTarget: ShortcutTarget,
+    romPath: String,
+    romUri: Uri?,
+    corePath: String,
+    retroArchPackage: String,
+    edenPackageName: String,
+    edenActivityName: String,
+    netherSx2PackageName: String,
+    netherSx2ActivityName: String,
+    netherSx2BootExtraKey: String = "bootPath"
+): Intent? {
+    return when (shortcutTarget) {
+        ShortcutTarget.RETROARCH -> {
+            val possiblePackages = listOf(
+                retroArchPackage,
+                "com.retroarch.aarch64",
+                "com.retroarch",
+                "com.retroarch.ra32"
+            ).distinct()
+
+            var resolvedPackage: String? = null
+            for (pkg in possiblePackages) {
+                try {
+                    context.packageManager.getApplicationInfo(pkg, 0)
+                    resolvedPackage = pkg
+                    break
+                } catch (_: Exception) {
+                }
+            }
+            if (resolvedPackage == null) return null
+
+            val appInfo = context.packageManager.getApplicationInfo(resolvedPackage, 0)
+            val externalBase = Environment.getExternalStorageDirectory().absolutePath
+            val externalFiles = "$externalBase/Android/data/$resolvedPackage/files"
+
+            Intent().apply {
+                action = Intent.ACTION_MAIN
+                component = ComponentName(
+                    resolvedPackage,
+                    "com.retroarch.browser.retroactivity.RetroActivityFuture"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("ROM", romPath)
+                putExtra("LIBRETRO", corePath)
+                putExtra("CONFIGFILE", "$externalFiles/retroarch.cfg")
+                putExtra(
+                    "IME",
+                    Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+                )
+                putExtra("DATADIR", appInfo.dataDir)
+                putExtra("APK", appInfo.sourceDir)
+                putExtra("SDCARD", externalBase)
+                putExtra("EXTERNAL", externalFiles)
+            }
+        }
+        ShortcutTarget.DOLPHIN -> {
+            Intent().apply {
+                action = Intent.ACTION_MAIN
+                component = ComponentName(
+                    "org.dolphinemu.dolphinemu",
+                    "org.dolphinemu.dolphinemu.ui.main.MainActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("AutoStartFile", FilePickerHelper.buildDolphinAutoStartFile(romUri, romPath))
+            }
+        }
+        ShortcutTarget.MELONDS -> {
+            val launchUri = when {
+                romUri != null -> romUri
+                romPath.startsWith("content://", ignoreCase = true) -> Uri.parse(romPath)
+                romPath.startsWith("file://", ignoreCase = true) -> Uri.parse(romPath)
+                else -> Uri.fromFile(File(romPath))
+            }
+            Intent().apply {
+                action = "me.magnum.melonds.LAUNCH_ROM"
+                component = ComponentName(
+                    "me.magnum.melonds",
+                    "me.magnum.melonds.ui.emulator.EmulatorActivity"
+                )
+                data = launchUri
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                putExtra("uri", launchUri.toString())
+            }
+        }
+        ShortcutTarget.PPSSPP_GOLD -> {
+            val launchUri = buildPpssppLaunchUri(romUri = romUri, romPath = romPath)
+            val uriString = launchUri.toString()
+            Intent().apply {
+                action = Intent.ACTION_VIEW
+                component = ComponentName(
+                    "org.ppsspp.ppssppgold",
+                    "org.ppsspp.ppsspp.PpssppActivity"
+                )
+                data = launchUri
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                putExtra("org.ppsspp.ppsspp.Shortcuts", uriString)
+            }
+        }
+        ShortcutTarget.EDEN -> {
+            val launchUri = buildPpssppLaunchUri(romUri = romUri, romPath = romPath)
+            Intent().apply {
+                action = Intent.ACTION_VIEW
+                component = ComponentName(edenPackageName, edenActivityName)
+                // Eden's EmulationActivity intent-filter requires content scheme
+                // with application/octet-stream MIME type.
+                setDataAndType(launchUri, "application/octet-stream")
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+        ShortcutTarget.NETHERSX2 -> {
+            // NetherSX2 expects bootPath as a tree-style SAF document URI string:
+            // content://.../tree/<volume>%3A<folder>/document/<volume>%3A<folder>%2F<file>
+            val bootUri = buildNetherSx2BootUri(romUri, romPath)
+            debugLog("NetherSX2 launch: $netherSx2BootExtraKey='$bootUri'")
+            Intent().apply {
+                action = Intent.ACTION_VIEW
+                component = ComponentName(netherSx2PackageName, netherSx2ActivityName)
+                putExtra(netherSx2BootExtraKey, bootUri)
+                data = Uri.parse(bootUri)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+        ShortcutTarget.HAKUX -> {
+            val launchUri = buildPpssppLaunchUri(romUri = romUri, romPath = romPath)
+            Intent().apply {
+                action = Intent.ACTION_VIEW
+                component = ComponentName(HAKUX_PACKAGE_NAME, HAKUX_ACTIVITY_NAME)
+                data = launchUri
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
+    }
+}
+
 private suspend fun createPinnedShortcut(
     context: Context,
     shortcutName: String,
@@ -1155,6 +1420,11 @@ private suspend fun createPinnedShortcut(
     shortcutTarget: ShortcutTarget,
     corePath: String,
     retroArchPackage: String,
+    edenPackageName: String,
+    edenActivityName: String,
+    netherSx2PackageName: String,
+    netherSx2ActivityName: String,
+    netherSx2BootExtraKey: String = "bootPath",
     selectedCorePreset: CorePreset?,
     selectedThumbnailDatabaseOverride: String?,
     shortcutIconMode: ShortcutIconMode,
@@ -1176,115 +1446,28 @@ private suspend fun createPinnedShortcut(
         return "Enter the RetroArch package name first."
     }
 
+    if (shortcutTarget == ShortcutTarget.EDEN && edenPackageName.isBlank()) {
+        return "Enter the Eden package name first."
+    }
+
+    if (shortcutTarget == ShortcutTarget.EDEN && edenActivityName.isBlank()) {
+        return "Enter the Eden activity class first."
+    }
+
+    if (shortcutTarget == ShortcutTarget.NETHERSX2 && netherSx2PackageName.isBlank()) {
+        return "Enter the NetherSX2 package name first."
+    }
+
+    if (shortcutTarget == ShortcutTarget.NETHERSX2 && netherSx2ActivityName.isBlank()) {
+        return "Enter the NetherSX2 activity class first."
+    }
+
     try {
-        val intent = when (shortcutTarget) {
-            ShortcutTarget.RETROARCH -> {
-                val possiblePackages = listOf(
-                    retroArchPackage,
-                    "com.retroarch.aarch64",
-                    "com.retroarch",
-                    "com.retroarch.ra32"
-                ).distinct()
-
-                var resolvedPackage: String? = null
-
-                for (pkg in possiblePackages) {
-                    try {
-                        context.packageManager.getApplicationInfo(pkg, 0)
-                        resolvedPackage = pkg
-                        break
-                    } catch (_: Exception) {
-                    }
-                }
-
-                if (resolvedPackage == null) {
-                    val installedPackages = context.packageManager.getInstalledApplications(0)
-                        .filter { it.packageName.contains("retroarch", ignoreCase = true) }
-                        .map { it.packageName }
-
-                    return if (installedPackages.isNotEmpty()) {
-                        "Found RetroArch packages: ${installedPackages.joinToString(", ")}. Please enter the correct package name above."
-                    } else {
-                        "RetroArch is not installed. Tried: ${possiblePackages.joinToString(", ")}"
-                    }
-                }
-
-                val appInfo = context.packageManager.getApplicationInfo(resolvedPackage, 0)
-                val externalBase = Environment.getExternalStorageDirectory().absolutePath
-                val externalFiles = "$externalBase/Android/data/$resolvedPackage/files"
-
-                Intent().apply {
-                    action = Intent.ACTION_MAIN
-                    component = ComponentName(
-                        resolvedPackage,
-                        "com.retroarch.browser.retroactivity.RetroActivityFuture"
-                    )
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    putExtra("ROM", romPath)
-                    putExtra("LIBRETRO", corePath)
-                    putExtra("CONFIGFILE", "$externalFiles/retroarch.cfg")
-                    putExtra(
-                        "IME",
-                        Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-                    )
-                    putExtra("DATADIR", appInfo.dataDir)
-                    putExtra("APK", appInfo.sourceDir)
-                    putExtra("SDCARD", externalBase)
-                    putExtra("EXTERNAL", externalFiles)
-                }
-            }
-            ShortcutTarget.DOLPHIN -> {
-                Intent().apply {
-                    action = Intent.ACTION_MAIN
-                    component = ComponentName(
-                        "org.dolphinemu.dolphinemu",
-                        "org.dolphinemu.dolphinemu.ui.main.MainActivity"
-                    )
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    putExtra("AutoStartFile", FilePickerHelper.buildDolphinAutoStartFile(romUri, romPath))
-                }
-            }
-            ShortcutTarget.MELONDS -> {
-                val launchUri = when {
-                    romUri != null -> romUri
-                    romPath.startsWith("content://", ignoreCase = true) -> Uri.parse(romPath)
-                    romPath.startsWith("file://", ignoreCase = true) -> Uri.parse(romPath)
-                    else -> Uri.fromFile(File(romPath))
-                }
-                Intent().apply {
-                    action = "me.magnum.melonds.LAUNCH_ROM"
-                    component = ComponentName(
-                        "me.magnum.melonds",
-                        "me.magnum.melonds.ui.emulator.EmulatorActivity"
-                    )
-                    data = launchUri
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                    putExtra("uri", launchUri.toString())
-                }
-            }
-            ShortcutTarget.PPSSPP_GOLD -> {
-                val launchUri = buildPpssppLaunchUri(romUri = romUri, romPath = romPath)
-                val uriString = launchUri.toString()
-                Intent().apply {
-                    action = Intent.ACTION_VIEW
-                    component = ComponentName(
-                        "org.ppsspp.ppssppgold",
-                        "org.ppsspp.ppsspp.PpssppActivity"
-                    )
-                    data = launchUri
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                    putExtra("org.ppsspp.ppsspp.Shortcuts", uriString)
-                }
-            }
-        }
+        val intent = buildLaunchIntent(
+            context, shortcutTarget, romPath, romUri, corePath,
+            retroArchPackage, edenPackageName, edenActivityName,
+            netherSx2PackageName, netherSx2ActivityName, netherSx2BootExtraKey
+        ) ?: return "RetroArch is not installed or package name is incorrect."
 
         val thumbnailDatabases = when (shortcutTarget) {
             ShortcutTarget.RETROARCH -> {
@@ -1304,6 +1487,15 @@ private suspend fun createPinnedShortcut(
             ShortcutTarget.PPSSPP_GOLD -> {
                 listOf("Sony - PlayStation Portable")
             }
+            ShortcutTarget.EDEN -> {
+                listOf("Nintendo - Nintendo Switch")
+            }
+            ShortcutTarget.NETHERSX2 -> {
+                listOf("Sony - PlayStation 2")
+            }
+            ShortcutTarget.HAKUX -> {
+                listOf("Microsoft - Xbox")
+            }
         }
         val iconBitmap = if (thumbnailDatabases.isEmpty()) {
             null
@@ -1311,11 +1503,13 @@ private suspend fun createPinnedShortcut(
             downloadBoxArtBitmap(context, romPath, shortcutName, thumbnailDatabases)
         }
         val shortcutIcon = iconBitmap?.let {
-            IconCompat.createWithAdaptiveBitmap(buildFilledShortcutIconBitmap(it, shortcutIconMode))
+            // Use a plain bitmap icon (not adaptive) so the transparent background is preserved;
+            // adaptive icons get a launcher-drawn background plate that renders as white.
+            IconCompat.createWithBitmap(buildFilledShortcutIconBitmap(it, shortcutIconMode))
         }
             ?: IconCompat.createWithResource(context, android.R.drawable.ic_media_play)
 
-        val romHash = romPath.hashCode().toUInt().toString(16)
+        val romHash = "$romPath|${intent.component?.className}|${intent.extras?.keySet()?.sorted()}".hashCode().toUInt().toString(16)
         val shortcutId = "${shortcutTarget.name.lowercase()}_${shortcutName.trim().replace(" ", "_")}_$romHash"
         val shortcutInfo = ShortcutInfoCompat.Builder(context, shortcutId)
             .setShortLabel(shortcutName)
@@ -1346,6 +1540,24 @@ private suspend fun createPinnedShortcut(
                 }
                 shortcutTarget == ShortcutTarget.PPSSPP_GOLD -> {
                     "PPSSPP Gold shortcut '$shortcutName' created. Box art not found, using fallback icon."
+                }
+                shortcutTarget == ShortcutTarget.EDEN && iconBitmap != null -> {
+                    "Eden shortcut '$shortcutName' created with downloaded box art."
+                }
+                shortcutTarget == ShortcutTarget.EDEN -> {
+                    "Eden shortcut '$shortcutName' created. Box art not found, using fallback icon."
+                }
+                shortcutTarget == ShortcutTarget.NETHERSX2 && iconBitmap != null -> {
+                    "NetherSX2 shortcut '$shortcutName' created with downloaded box art."
+                }
+                shortcutTarget == ShortcutTarget.NETHERSX2 -> {
+                    "NetherSX2 shortcut '$shortcutName' created. Box art not found, using fallback icon."
+                }
+                shortcutTarget == ShortcutTarget.HAKUX && iconBitmap != null -> {
+                    "hakuX shortcut '$shortcutName' created with downloaded box art."
+                }
+                shortcutTarget == ShortcutTarget.HAKUX -> {
+                    "hakuX shortcut '$shortcutName' created. Box art not found, using fallback icon."
                 }
                 iconBitmap != null -> {
                     "Shortcut '$shortcutName' created with downloaded box art."
@@ -1386,6 +1598,7 @@ private suspend fun downloadBoxArtBitmap(
             .distinct()
 
         fun findMatchingThumbnail(): Bitmap? {
+            debugLog("Box art lookup: databases=$thumbnailDatabases candidates=$normalizedCandidates keys=$comparisonKeys")
             for (database in thumbnailDatabases) {
                 val listingEntries = loadThumbnailListingEntries(database)
                 if (listingEntries.isEmpty()) {
@@ -1410,9 +1623,11 @@ private suspend fun downloadBoxArtBitmap(
                 }
 
                 val matchedEntries = (exactMatches + looseMatches).distinctBy { it.imageName }
+                debugLog("[$database] ${listingEntries.size} entries, ${exactMatches.size} exact, ${looseMatches.size} loose matches")
                 for (entry in matchedEntries) {
                     val url = buildThumbnailUrl(database, "Named_Boxarts", entry.imageName)
                     downloadBitmap(url)?.let { return it }
+                        ?: debugLog("[$database] Download FAILED: $url")
                 }
             }
             return null
@@ -1420,8 +1635,13 @@ private suspend fun downloadBoxArtBitmap(
         }
 
         val bitmap = findMatchingThumbnail()
-        bitmap?.let {
-            saveCachedThumbnailBitmap(context, cacheKey, it)
+        if (bitmap != null) {
+            saveCachedThumbnailBitmap(context, cacheKey, bitmap)
+        } else {
+            // Don't cache misses: a failed lookup (offline, listing fetch
+            // timeout, or a database added later) would otherwise be
+            // permanently cached for this ROM.
+            buildThumbnailCacheFile(context, cacheKey).delete()
         }
 
         bitmap
@@ -1462,6 +1682,15 @@ private suspend fun prefetchBulkThumbnails(
             }
             ShortcutTarget.PPSSPP_GOLD -> {
                 listOf("Sony - PlayStation Portable")
+            }
+            ShortcutTarget.EDEN -> {
+                listOf("Nintendo - Nintendo Switch")
+            }
+            ShortcutTarget.NETHERSX2 -> {
+                listOf("Sony - PlayStation 2")
+            }
+            ShortcutTarget.HAKUX -> {
+                listOf("Microsoft - Xbox")
             }
         }
 
@@ -1553,8 +1782,8 @@ private fun loadThumbnailListingEntries(database: String): List<ThumbnailListing
 
 private fun fetchUrlText(url: String): String? {
     val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-        connectTimeout = 3000
-        readTimeout = 5000
+        connectTimeout = 5000
+        readTimeout = 15000
         instanceFollowRedirects = true
         setRequestProperty("User-Agent", "RomShortcutMaker")
     }
@@ -1810,6 +2039,36 @@ private fun extractRomExtension(romPath: String): String {
     return candidate.substringAfterLast('.', "").lowercase()
 }
 
+private fun buildNetherSx2BootUri(romUri: Uri?, romPath: String): String {
+    // Prefer the real SAF document URI from the picker; NetherSX2 resolves
+    // these via its own SAF permissions for the containing folder.
+    if (romUri != null && romUri.scheme.equals("content", ignoreCase = true)) {
+        return romUri.toString()
+    }
+    if (romPath.startsWith("content://", ignoreCase = true)) {
+        return romPath
+    }
+
+    // Build the tree-style document URI NetherSX2's to_document_uri() produces:
+    // content://com.android.externalstorage.documents/tree/<volume>%3A<folder>/document/<volume>%3A<folder>%2F<file>
+    val normalizedPath = romPath.replace('\\', '/').trim()
+    if (normalizedPath.startsWith("/storage/", ignoreCase = true)) {
+        val storageRemainder = normalizedPath.substringAfter("/storage/")
+        val driveId = storageRemainder.substringBefore('/')
+        val relativePath = storageRemainder.substringAfter('/', "")
+        if (driveId.isNotBlank() && relativePath.isNotBlank()) {
+            val volumeId = if (driveId.equals("emulated", ignoreCase = true)) "primary" else driveId
+            val folder = relativePath.substringBeforeLast('/', "")
+            val fileName = relativePath.substringAfterLast('/')
+            val treeDocId = if (folder.isBlank()) "$volumeId:" else "$volumeId:$folder"
+            val docId = "$volumeId:$relativePath"
+            return "content://com.android.externalstorage.documents/tree/${Uri.encode(treeDocId)}/document/${Uri.encode(docId)}"
+        }
+    }
+
+    return romPath
+}
+
 private fun buildPpssppLaunchUri(romUri: Uri?, romPath: String): Uri {
     if (romUri != null && romUri.scheme.equals("content", ignoreCase = true)) {
         return romUri
@@ -1884,8 +2143,8 @@ private fun buildFilledShortcutIconBitmap(source: Bitmap, shortcutIconMode: Shor
 
 private fun downloadBitmap(url: String): Bitmap? {
     val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-        connectTimeout = 2000
-        readTimeout = 2000
+        connectTimeout = 5000
+        readTimeout = 10000
         instanceFollowRedirects = true
     }
 
